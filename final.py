@@ -454,25 +454,25 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
             # 把拦下来的ARP放回去
 
-            if arp_msg.opcode == 1:  # request
-                if dpid in self.switch_contain_host:
+            # if arp_msg.opcode == 1:  # request
+                # if dpid in self.switch_contain_host:
 
-                    print("[###] PUT BACK ARP REQ! to host")
+                #     print("[###] PUT BACK ARP REQ! to host")
 
-                    host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
+                #     host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
 
-                    print("[###] host_port_li", host_port_li)
+                #     print("[###] host_port_li", host_port_li)
                     
 
-                    data = msg.data
+                #     data = msg.data
 
-                    actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
+                #     actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
 
-                    out = datapath.ofproto_parser.OFPPacketOut(
-                        datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-                        actions=actions, data=data)
-                    datapath.send_msg(out)
-            elif arp_msg.opcode == 2: # reply
+                #     out = datapath.ofproto_parser.OFPPacketOut(
+                #         datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
+                #         actions=actions, data=data)
+                #     datapath.send_msg(out)
+            if True: # reply
                 data = msg.data
 
 
@@ -490,17 +490,17 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 if src_belong_switch_dpid != dest_belong_switch_dpid:
                     out_port = self.res[src_belong_switch_dpid][dest_belong_switch_dpid]
                 else:
-                    out_port = self.belong[dest_mac][0]
+                    out_port = self.belong[dest_mac][1]
                 print("[->] put back out port", out_port)
 
                 actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-                if dpid in self.switch_contain_host:
-                    host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
-                    host_port_li.append(out_port)
-                    print("[->] put back host li", host_port_li)
+                # if dpid in self.switch_contain_host:
+                #     host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
+                #     host_port_li.append(out_port)
+                #     print("[->] put back host li", host_port_li)
 
-                    actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
+                #     actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
 
                 out = datapath.ofproto_parser.OFPPacketOut(
                     datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
