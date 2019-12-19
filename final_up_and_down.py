@@ -33,6 +33,8 @@ ETHERNET = ethernet.ethernet.__name__
 ETHERNET_MULTICAST = "ff:ff:ff:ff:ff:ff"
 ARP = arp.arp.__name__
 
+N = 100
+
 class Graph:
     def __init__(self, n):
         self.n = n
@@ -71,6 +73,41 @@ class Graph:
                 self.exist[now] = False
             now = self.next[now]
 
+class Edge(object):
+    def __init__(self, u, port_u, v, port_v):
+        self.u = (u, port_u)
+        self.v = (v, port_v)
+
+class SpanningTree():
+    def __init__(self, n):
+        self.edges = []
+        self.tree = []
+        self.n = n
+        self.fa = []
+
+    def add(self, edge: Edge):
+        self.edges.append(edge)
+
+    def init_fa(self):
+        self.fa = [x for x in range(self.n)]
+
+    def get_fa(self, x):
+        if self.fa[x] == x:
+            return x
+        self.fa[x] = get_fa(self.fa[x])
+        return self.fa[x]
+
+    def tree(self):
+        tree = []
+
+        init_fa()
+        for edge in self.edges:
+            fu = self.get_fa(edge.u[0])
+            fv = self.get_fa(edge.v[0])
+            if fu == fv:
+                continue
+            fa[fu] = fv
+            yield edge
 
 class ShortestPathSwitching(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
@@ -79,13 +116,15 @@ class ShortestPathSwitching(app_manager.RyuApp):
         super(ShortestPathSwitching, self).__init__(*args, **kwargs)
 
         self.tm = TopoManager()
-        self.graph = Graph(100)  # switch 数量
+        self.st = Graph(N)
+        self.graph = Graph(N)  # switch 数量
         self.belong = {} # 每个host属于哪个switch: key, value <- host_mac, (switch_id, switch_port_num)
         self.mac_to_port = {} # ???
         self.res = {} # 最短路结果: key, value <- [i][j] = (i-> out1_port)
         self.ip_mac_dict = {} # 每个ip对应的host是什么：key, value <- ip, host_mac
         self.switch_list =[] # 所有switch的list
         # self.datapath_set = {}
+
 
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
@@ -135,7 +174,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
             host.mac,
             host.port.port_no
         )
-        
+
         # 2 更新其他switch上的转发表
         for dpid in self.res: # 最短路的计算结果？
             dp = ofctl_api.get_datapath(self, dpid=dpid)
@@ -217,7 +256,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         link = ev.link
         src_port = link.src
         dst_port = link.dst
-        
+
         print("[*] delete happened")
         self.logger.warn("Deleted Link:  switch%s/%s (%s) -> switch%s/%s (%s)",
                           src_port.dpid, src_port.port_no, src_port.hw_addr,
@@ -312,7 +351,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         # self.mac_to_port[dpid][src] = msg.in_port
         # print("[PI]","dpid=",dpid, "knows",self.mac_to_port[dpid])
 
-        
+
 
         # if dst in self.mac_to_port[dpid]:
         #     # dst is known, redirect the message to target port
