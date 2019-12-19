@@ -3,10 +3,13 @@ class Edge(object):
     def __init__(self, u, port_u, v, port_v):
         self.u = (u, port_u)
         self.v = (v, port_v)
+
     def __repr__(self):
         return __str__(self)
+
     def __str__(self):
         return "==> u: (%d %d) v: (%d %d)" % (self.u[0], self.u[1], self.v[0], self.v[1])
+
 
 class SpanningTree():
     def __init__(self, n):
@@ -42,39 +45,43 @@ class SpanningTree():
         for x in self.tree:
             yield x
 
+    def flood(self, now):
+        queue = [[(now, None)], []]
+        t = 0
+        while len(queue[t]) > 0:
+            res = []
+            for now, fa in queue[t]:
+                for edge in self.tree:
+                    v = None
+                    if edge.u[0] == now:
+                        u, v = edge.u, edge.v
+                    if edge.v[0] == now:
+                        u, v = edge.v, edge.u
+                    if v is None or v[0] == fa:
+                        continue
 
-    # def flood(self, now):
-    #     for edge in self.tree:
-    #         if edge.u[0] == now:
-    #             for data in self._dfs(edge.v[0], now, edge.u[1]):
-    #                 yield data
-    #         if edge.v[0] == now:
-    #             for data in self._dfs(edge.u[0], now, edge.v[1]):
-    #                 yield data
+                    res.append((u[0], u[1], v[0]))
+                    queue[t ^ 1].append((v[0], u[0]))
 
-    def flood(self, now, fa, port):
-        yield fa, now, port
-        for edge in self.tree:
-            if edge.u[0] == now:
-                if edge.v[0] == fa:
-                    continue
-                for data in self.flood(edge.v[0], now, edge.u[1]):
-                    yield data
-            if edge.v[0] == now:
-                if edge.u[0] == fa:
-                    continue
-                for data in self.flood(edge.u[0], now, edge.v[1]):
-                    yield data
+            yield res
+            queue[t] = []
+            t ^= 1
+
 
 if __name__ == "__main__":
     st = SpanningTree(100)
-    st.add(Edge(1, 1, 2, 1))
-    st.add(Edge(1, 2, 5, 1))
-    st.add(Edge(2, 3, 4, 1))
-    st.add(Edge(4, 2, 5, 2))
-    st.add(Edge(3, 1, 2, 2))
+
+    st.add(Edge(5, 3, 4, 3))
+    st.add(Edge(1, 2, 2, 1))
+    st.add(Edge(5, 2, 2, 3))
+    st.add(Edge(2, 2, 3, 1))
+    st.add(Edge(3, 2, 4, 2))
+    st.add(Edge(1, 3, 6, 4))
+    st.add(Edge(3, 3, 6, 2))
+    st.add(Edge(6, 3, 4, 4))
 
     st.work()
 
-    for edge in st.flood(3, None, None):
-        print(f"to={edge[1]}, last_switch={edge[0]}, last_port={edge[2]}")
+    for res in st.flood(2):
+        for edge in res:
+            print(f"to={edge[2]}, last_switch={edge[0]}, last_port={edge[1]}")
