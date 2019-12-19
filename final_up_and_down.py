@@ -97,9 +97,8 @@ class SpanningTree():
         self.fa[x] = get_fa(self.fa[x])
         return self.fa[x]
 
-    def tree(self):
-        tree = []
-
+    def work(self):
+        self.tree = []
         init_fa()
         for edge in self.edges:
             fu = self.get_fa(edge.u[0])
@@ -107,7 +106,10 @@ class SpanningTree():
             if fu == fv:
                 continue
             fa[fu] = fv
-            yield edge
+            self.tree.append(edge)
+    def __iter__(self):
+        for x in self.tree:
+            yield x
 
 class ShortestPathSwitching(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
