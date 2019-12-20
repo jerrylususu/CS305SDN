@@ -163,10 +163,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
         # self.datapath_set = {}
 
         self.spanning_tree = SpanningTree(1000); # 用于处理广播包的伸展树 只处理内部switch节点
-        # self.st_mapping = {} # key=mac_addr, value=int
-        # self.st_mapping_rev = {} # value=int, key=mac_addr
-        # self.st_mapping_cnt = 1 # 映射计数器 避免重复
-        # 不需要了 switch本身有dpid可以直接搞
         self.switch_contain_host = {} # 每个switch有哪些host: key=switch.dp.id, value=[] (host_mac, switch_port_num)
 
 
@@ -198,9 +194,11 @@ class ShortestPathSwitching(app_manager.RyuApp):
         for port in switch.ports:
             self.logger.warn("\t%d:  %s", port.port_no, port.hw_addr)
 
-
-        self.switch_list.remove(switch) # 移除controller控制的switch列表
-        # TODO:  Update network topology and flow rules
+        try:
+            self.switch_list.remove(switch) # 移除controller控制的switch列表
+        except ValueError:
+            # 应该已经被移除了
+            pass
 
     @set_ev_cls(event.EventHostAdd)
     def handle_host_add(self, ev): # 主机上线
@@ -222,12 +220,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
             host.mac,
             host.port.port_no
         )
-
-        # self.add_forwaring_rule(
-        #     ofctl_api.get_datapath(self, dpid=host.port.dpid),
-        #     haddr_to_bin(ETHERNET_MULTICAST),
-        #     host.port.port_no
-        # )
         
         # 2 更新其他switch上的转发表
         for dpid in self.res: # 最短路的计算结果？
@@ -262,8 +254,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.calc_spanning_tree()
 
-        self.update_terminal_broadcast_rule()
-
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
         """
@@ -291,51 +281,14 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.spanning_tree.work()
 
         # 全部flow清空
-        for switch in self.switch_list:
-            datapath = ofctl_api.get_datapath(self, dpid = switch.dp.id)
-            empty_match = datapath.ofproto_parser.OFPMatch()
-            cmd = datapath.ofproto.OFPFC_DELETE
-            actions = []
+        self.flow_reset()
 
-            ofp_parser = datapath.ofproto_parser
-
-            flow_mod = datapath.ofproto_parser.OFPFlowMod(
-                datapath, match=empty_match, cookie=0, command=cmd, priority=65535, actions=actions)
-            datapath.send_msg(flow_mod)
-            # flow_mod = self.remove_table_flows(datapath, 0, empty_match, instructions)
-        # print "deleting all flow entries in table ", 0
-            # datapath.send_msg(flow_mod)
-
-        # flow重建
-        # 底层最短路
-        for host_mac in self.belong:
-            host_port_dpid, host_port_no = self.belong[host_mac]
-            self.add_forwaring_rule(
-                ofctl_api.get_datapath(self, dpid=host_port_dpid),
-                host_mac,
-                host_port_no
-            )
-
-            for dpid in self.res: # 最短路的计算结果？
-                dp = ofctl_api.get_datapath(self, dpid=dpid)
-
-                # 如果是自己 就跳过
-                if dpid == host_port_dpid:
-                    continue
-
-                # 从图上更新其他switch
-                self.add_forwaring_rule(
-                    dp,
-                    host_mac,
-                    self.res[dpid][host_port_dpid]
-                )
+        # 重建 flow
+        self.flow_recreate()
+        
+        # print("[DEBUG!!!] self.switch_contain_host", self.switch_contain_host)
         # 上层伸展树
-
-        print("[DEBUG!!!] self.switch_contain_host", self.switch_contain_host)
-
         self.calc_spanning_tree()
-
-        self.update_terminal_broadcast_rule()
 
 
     @set_ev_cls(event.EventLinkDelete)
@@ -366,47 +319,13 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.spanning_tree.work()
 
         # 全部flow清空
-        for switch in self.switch_list:
-            datapath = ofctl_api.get_datapath(self, dpid = switch.dp.id)
-            empty_match = datapath.ofproto_parser.OFPMatch()
-            cmd = datapath.ofproto.OFPFC_DELETE
-            actions = []
+        self.flow_reset()
 
-            ofp_parser = datapath.ofproto_parser
+        # 重建 flow
+        self.flow_recreate()
 
-            flow_mod = datapath.ofproto_parser.OFPFlowMod(
-                datapath, match=empty_match, cookie=0, command=cmd, priority=65535, actions=actions)
-            datapath.send_msg(flow_mod)
-            # flow_mod = self.remove_table_flows(datapath, 0, empty_match, instructions)
-        # print "deleting all flow entries in table ", 0
-            # datapath.send_msg(flow_mod)
-
-        # flow重建
-        for host_mac in self.belong:
-            host_port_dpid, host_port_no = self.belong[host_mac]
-            self.add_forwaring_rule(
-                ofctl_api.get_datapath(self, dpid=host_port_dpid),
-                host_mac,
-                host_port_no
-            )
-
-            for dpid in self.res: # 最短路的计算结果？
-                dp = ofctl_api.get_datapath(self, dpid=dpid)
-
-                # 如果是自己 就跳过
-                if dpid == host_port_dpid:
-                    continue
-
-                # 从图上更新其他switch
-                self.add_forwaring_rule(
-                    dp,
-                    host_mac,
-                    self.res[dpid][host_port_dpid]
-                )
         # 上层伸展树
         self.calc_spanning_tree()
-
-        self.update_terminal_broadcast_rule()
 
 
         # TODO:  Update network topology and flow rules
@@ -428,189 +347,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
     def packet_in_handler(self, ev):
         # 如果收到 PacketIn 请求
         pass
-        
-        # msg = ev.msg
-        # datapath = msg.datapath
-        # ofproto = datapath.ofproto
-
-        # pkt = packet.Packet(msg.data)
-        # eth = pkt.get_protocol(ethernet.ethernet)
-        # if eth.ethertype == ether_types.ETH_TYPE_LLDP:
-        #     # ignore lldp packet
-        #     return
-        # dst = eth.dst
-        # src = eth.src
-
-        # dpid = datapath.id # message source?
-
-        # header_list = dict((p.protocol_name, p)for p in pkt.protocols if type(p) != str)
-
-        # if eth.ethertype == ether_types.ETH_TYPE_ARP:
-        #     arp_msg = pkt.get_protocols(arp.arp)[0]
-        #     print("[ARP] arp_msg.opcode",arp_msg.opcode,"recv_switch=", dpid,"src=",src,"src_ip=", arp_msg.src_ip,"dst=",dst,"dst_ip",arp_msg.dst_ip)
-        #     if arp_msg.opcode == arp.ARP_REQUEST:
-
-        #         self.logger.warning("[ARP WHO HAS] Received ARP REQUEST on switch%d/%d:  Who has %s?  Tell %s",
-        #                             dpid, msg.in_port, arp_msg.dst_ip, arp_msg.src_mac)
-        #         # return
-
-        #     # 把拦下来的ARP放回去
-
-        #     if arp_msg.opcode == 1:  # request
-        #         if dpid in self.switch_contain_host:
-
-        #             print("[###] PUT BACK ARP REQ! to host")
-
-        #             host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
-
-        #             print("[###] host_port_li", host_port_li)
-                    
-
-        #             data = msg.data
-
-        #             actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
-
-        #             out = datapath.ofproto_parser.OFPPacketOut(
-        #                 datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-        #                 actions=actions, data=data)
-        #             datapath.send_msg(out)
-        #     else: # reply
-        #         data = msg.data
-
-
-        #         try:
-        #             src_belong_switch_dpid = dpid
-        #             print("[*] src_belong_dpid",src_belong_switch_dpid)
-        #             dest_mac = self.ip_mac_dict[arp_msg.dst_ip]
-        #             print("[*] dest_mac", dest_mac)
-        #             dest_belong_switch_dpid = self.belong[dest_mac][0]
-        #             print("[*] dst_belong_dpid",dest_belong_switch_dpid)
-        #         except KeyError as e:
-        #             print(e)
-        #             print("[?] Is this network disconnected?")
-
-        #         if src_belong_switch_dpid != dest_belong_switch_dpid:
-        #             out_port = self.res[src_belong_switch_dpid][dest_belong_switch_dpid]
-        #         else:
-        #             out_port = self.belong[dest_mac][1]
-        #         print("[->] put back out port", out_port)
-
-        #         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-
-        #         # if dpid in self.switch_contain_host:
-        #         #     host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
-        #         #     host_port_li.append(out_port)
-        #         #     print("[->] put back host li", host_port_li)
-
-        #         #     actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
-
-        #         out = datapath.ofproto_parser.OFPPacketOut(
-        #             datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-        #             actions=actions, data=data)
-        #         datapath.send_msg(out)
-
-
-
-        # self.mac_to_port.setdefault(dpid, {})
-
-        # self.logger.info("[PI] packet in src_dp=%s src_in_port=%s src_mac=%s dst_mac=%s ", dpid, msg.in_port,  src, dst)
-
-        # # learn a mac address to avoid FLOOD next time.
-        # self.mac_to_port[dpid][src] = msg.in_port
-        # print("[PI]","dpid=",dpid, "knows",self.mac_to_port[dpid])
-
-        
-
-        # if dst in self.mac_to_port[dpid]:
-        #     # dst is known, redirect the message to target port
-        #     out_port = self.mac_to_port[dpid][dst]
-        # else:
-        #     # dst not directly known, need to flood?
-        #     print("{exp} OFPP_FLOOD HAPPENED")
-        #     out_port = ofproto.OFPP_FLOOD
-
-        # if eth.ethertype == ether_types.ETH_TYPE_ARP and dst == ETHERNET_MULTICAST and arp_msg.opcode == 2:
-        #     print("[-] ARP Broadcast, ignoring...")
-        # else:
-
-        #     try:
-        #         src_belong_switch_dpid = self.belong[arp_msg.src_mac][0]
-        #         print("[*] src_belong_dpid",src_belong_switch_dpid)
-        #         dest_mac = self.ip_mac_dict[arp_msg.dst_ip]
-        #         print("[*] dest_mac", dest_mac)
-        #         dest_belong_switch_dpid = self.belong[dest_mac][0]
-        #         print("[*] dst_belong_dpid",dest_belong_switch_dpid)
-        #     except KeyError as e:
-        #         print(e)
-        #         print("[?] Is this network disconnected?")
-
-        #     if src_belong_switch_dpid != dest_belong_switch_dpid:
-        #         out_port = self.res[src_belong_switch_dpid][dest_belong_switch_dpid]
-        #     else:
-        #         out_port = self.belong[dest_mac][0]
-        #     print("[->] out port", out_port)
-
-        #     actions = [datapath.ofproto_parser.OFPActionOutput(msg.in_port)]
-
-        #     ARP_Reply = packet.Packet()
-        #     ARP_Reply.add_protocol(ethernet.ethernet(
-        #                 ethertype=header_list[ETHERNET].ethertype,
-        #                 dst=arp_msg.src_mac,
-        #                 src=dest_mac))
-        #     ARP_Reply.add_protocol(arp.arp(
-        #                 opcode=arp.ARP_REPLY,
-        #                 src_mac=dest_mac,
-        #                 src_ip=arp_msg.dst_ip,
-        #                 dst_mac=arp_msg.src_mac,
-        #                 dst_ip=arp_msg.src_ip))
-
-        #     ARP_Reply.serialize()
-
-        #     out = datapath.ofproto_parser.OFPPacketOut(
-        #         datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER, in_port=datapath.ofproto.OFPP_CONTROLLER,
-        #         actions=actions, data=ARP_Reply.data)
-        #     datapath.send_msg(out) # send openflow flow entry
-
-            # actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-
-
-        #     data = msg.data
-        #     # if msg.buffer_id == ofproto.OFP_NO_BUFFER: # whether to include the packed in raw packet
-        #     #     data = msg.data
-
-        #     out = datapath.ofproto_parser.OFPPacketOut(
-        #         datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-        #         actions=actions, data=data)
-        #     datapath.send_msg(out) # send openflow flow entry
-
-        # actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-
-        # # install a flow to avoid packet_in next time
-        # if out_port != ofproto.OFPP_FLOOD:
-        #     self.add_flow(datapath, msg.in_port, dst, src, actions)
-
-
-
-
-        # data = None
-        # if msg.buffer_id == ofproto.OFP_NO_BUFFER: # whether to include the packed in raw packet
-        #     data = msg.data
-
-        # out = datapath.ofproto_parser.OFPPacketOut(
-        #     datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-        #     actions=actions, data=data)
-        # datapath.send_msg(out) # send openflow flow entry
-
-
-    # def remove_table_flows(self, datapath, table_id, match, instructions):
-    #     """Create OFP flow mod message to remove flows from table."""
-    #     ofproto = datapath.ofproto
-    #     flow_mod = datapath.ofproto_parser.OFPFlowMod(datapath, 0, 0, table_id, ofproto.OFPFC_DELETE,0, 0,1,ofproto.OFPCML_NO_BUFFER,ofproto.OFPP_ANY, OFPG_ANY, 0, match, instructions)
-    #     # flow_mod = datapath.ofproto_parser.OFPFlowMod(
-    #     #     datapath=datapath, match=0, cookie=0, command=ofproto.OFPFC_DELETE, 
-    #     #     idle_timeout=0, hard_timeout=0, buffer_id=ofproto.OFP_NO_BUFFER)
-    #     #     #out_port=ofproto.OFPP_ANY, flags=OFPG_ANY, 0, match, instructions)
-    #     return flow_mod
 
     def shortest_path(self):
         self.res = {}
@@ -641,27 +377,45 @@ class ShortestPathSwitching(app_manager.RyuApp):
                             self.res[j][i] = port
         print("[!!!!]",self.res)
 
-    def update_terminal_broadcast_rule(self):
-        pass
+    def flow_reset(self):
+        # flow 清空
+        for switch in self.switch_list:
+            datapath = ofctl_api.get_datapath(self, dpid = switch.dp.id)
+            empty_match = datapath.ofproto_parser.OFPMatch()
+            cmd = datapath.ofproto.OFPFC_DELETE
+            actions = []
 
-        # print("[@@@] update terminal!!!")
+            ofp_parser = datapath.ofproto_parser
 
-        # for switch_id, host_list in self.switch_contain_host.items():
-        #     out_port_li = [i[1] for i in host_list]
+            flow_mod = datapath.ofproto_parser.OFPFlowMod(
+                datapath, match=empty_match, cookie=0, command=cmd, priority=65535, actions=actions)
+            datapath.send_msg(flow_mod)
 
-        #     datapath = ofctl_api.get_datapath(self, dpid=switch_id)
-        #     ofproto = datapath.ofproto
-        #     match = datapath.ofproto_parser.OFPMatch(
-        #         dl_dst=haddr_to_bin(ETHERNET_MULTICAST), # 这是一个广播包
-        #     )
 
-        #     actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in out_port_li]
-        #     mod = datapath.ofproto_parser.OFPFlowMod(
-        #         datapath=datapath, match=match, cookie=0,
-        #         command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-        #         priority=0, # 优先级至少比默认最短路优先级高 (或许可以设定一个统一值)
-        #         flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
-        #     datapath.send_msg(mod)
+    def flow_recreate(self):
+        # flow 重建
+        for host_mac in self.belong:
+            host_port_dpid, host_port_no = self.belong[host_mac]
+            self.add_forwaring_rule(
+                ofctl_api.get_datapath(self, dpid=host_port_dpid),
+                host_mac,
+                host_port_no
+            )
+
+            for dpid in self.res: # 最短路的计算结果？
+                dp = ofctl_api.get_datapath(self, dpid=dpid)
+
+                # 如果是自己 就跳过
+                if dpid == host_port_dpid:
+                    continue
+
+                # 从图上更新其他switch
+                self.add_forwaring_rule(
+                    dp,
+                    host_mac,
+                    self.res[dpid][host_port_dpid]
+                )
+
 
     def calc_spanning_tree(self):
         # 广播包应该也到当前节点的内部节点！！！！！
