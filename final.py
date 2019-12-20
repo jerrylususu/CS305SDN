@@ -223,11 +223,11 @@ class ShortestPathSwitching(app_manager.RyuApp):
             host.port.port_no
         )
 
-        self.add_forwaring_rule(
-            ofctl_api.get_datapath(self, dpid=host.port.dpid),
-            haddr_to_bin(ETHERNET_MULTICAST),
-            host.port.port_no
-        )
+        # self.add_forwaring_rule(
+        #     ofctl_api.get_datapath(self, dpid=host.port.dpid),
+        #     haddr_to_bin(ETHERNET_MULTICAST),
+        #     host.port.port_no
+        # )
         
         # 2 更新其他switch上的转发表
         for dpid in self.res: # 最短路的计算结果？
@@ -454,25 +454,25 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
             # 把拦下来的ARP放回去
 
-            # if arp_msg.opcode == 1:  # request
-                # if dpid in self.switch_contain_host:
+            if arp_msg.opcode == 1:  # request
+                if dpid in self.switch_contain_host:
 
-                #     print("[###] PUT BACK ARP REQ! to host")
+                    print("[###] PUT BACK ARP REQ! to host")
 
-                #     host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
+                    host_port_li = [i[1] for i in self.switch_contain_host[dpid]]
 
-                #     print("[###] host_port_li", host_port_li)
+                    print("[###] host_port_li", host_port_li)
                     
 
-                #     data = msg.data
+                    data = msg.data
 
-                #     actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
+                    actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_port_li]
 
-                #     out = datapath.ofproto_parser.OFPPacketOut(
-                #         datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-                #         actions=actions, data=data)
-                #     datapath.send_msg(out)
-            if True: # reply
+                    out = datapath.ofproto_parser.OFPPacketOut(
+                        datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
+                        actions=actions, data=data)
+                    datapath.send_msg(out)
+            else: # reply
                 data = msg.data
 
 
