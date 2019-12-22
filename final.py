@@ -26,7 +26,6 @@ from ofctl_utils import OfCtl, VLANID_NONE
 
 from topo_manager_example import TopoManager
 
-
 import ryu.app.ofctl.api as ofctl_api
 
 from ryu.lib.mac import haddr_to_bin
@@ -35,16 +34,21 @@ ETHERNET = ethernet.ethernet.__name__
 ETHERNET_MULTICAST = "ff:ff:ff:ff:ff:ff"
 ARP = arp.arp.__name__
 
+
 class Edge(object):
     def __init__(self, u, port_u, v, port_v):
         self.u = (u, port_u)
         self.v = (v, port_v)
+
     def __repr__(self):
         return __str__(self)
+
     def __str__(self):
         return "==> u: (%d %d) v: (%d %d)" % (self.u[0], self.u[1], self.v[0], self.v[1])
+
     def __eq__(self, other):
         return self.u == other.u and self.v == other.v
+
 
 class SpanningTree():
     def __init__(self, n):
@@ -108,6 +112,7 @@ class SpanningTree():
             queue[t] = []
             t ^= 1
 
+
 class Graph:
     def __init__(self, n):
         self.n = n
@@ -155,16 +160,15 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.tm = TopoManager()
         self.graph = Graph(100)  # switch 数量
-        self.belong = {} # 每个host属于哪个switch: key, value <- host_mac, (switch_id, switch_port_num)
-        self.mac_to_port = {} # ???
-        self.res = {} # 最短路结果: key, value <- [i][j] = (i-> out1_port)
-        self.ip_mac_dict = {} # 每个ip对应的host是什么：key, value <- ip, host_mac
-        self.switch_list =[] # 所有switch的list
+        self.belong = {}  # 每个host属于哪个switch: key, value <- host_mac, (switch_id, switch_port_num)
+        self.mac_to_port = {}  # ???
+        self.res = {}  # 最短路结果: key, value <- [i][j] = (i-> out1_port)
+        self.ip_mac_dict = {}  # 每个ip对应的host是什么：key, value <- ip, host_mac
+        self.switch_list = []  # 所有switch的list
         # self.datapath_set = {}
 
-        self.spanning_tree = SpanningTree(1000); # 用于处理广播包的伸展树 只处理内部switch节点
-        self.switch_contain_host = {} # 每个switch有哪些host: key=switch.dp.id, value=[] (host_mac, switch_port_num)
-
+        self.spanning_tree = SpanningTree(1000);  # 用于处理广播包的伸展树 只处理内部switch节点
+        self.switch_contain_host = {}  # 每个switch有哪些host: key=switch.dp.id, value=[] (host_mac, switch_port_num)
 
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
@@ -177,15 +181,14 @@ class ShortestPathSwitching(app_manager.RyuApp):
         for port in switch.ports:
             self.logger.warn("\t%d:  %s", port.port_no, port.hw_addr)
 
-
         self.tm.add_switch(switch)
-        self.switch_list.append(switch) # 加入controller控制的switch列表
+        self.switch_list.append(switch)  # 加入controller控制的switch列表
 
         # switch上线 加入mapping 为之后链路做准备
         self.one_switch_special_case()
 
     @set_ev_cls(event.EventSwitchLeave)
-    def handle_switch_delete(self, ev): # switch下线
+    def handle_switch_delete(self, ev):  # switch下线
         """
         Event handler indicating a switch has been removed
         """
@@ -196,16 +199,15 @@ class ShortestPathSwitching(app_manager.RyuApp):
             self.logger.warn("\t%d:  %s", port.port_no, port.hw_addr)
 
         try:
-            self.switch_list.remove(switch) # 移除controller控制的switch列表
+            self.switch_list.remove(switch)  # 移除controller控制的switch列表
         except ValueError:
             # 应该已经被移除了
             pass
 
         self.one_switch_special_case()
 
-
     @set_ev_cls(event.EventHostAdd)
-    def handle_host_add(self, ev): # 主机上线
+    def handle_host_add(self, ev):  # 主机上线
         """
         Event handler indiciating a host has joined the network
         This handler is automatically triggered when a host sends an ARP response.
@@ -213,7 +215,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         host = ev.host
 
         self.logger.warn("Host Added:  %s (IPs:  %s) on switch%s/%s (%s)",
-                          host.mac, host.ipv4,
+                         host.mac, host.ipv4,
                          host.port.dpid, host.port.port_no, host.port.hw_addr)
 
         # 1 记录这个主机对应的switch 增加转发表
@@ -224,9 +226,9 @@ class ShortestPathSwitching(app_manager.RyuApp):
             host.mac,
             host.port.port_no
         )
-        
+
         # 2 更新其他switch上的转发表
-        for dpid in self.res: # 最短路的计算结果？
+        for dpid in self.res:  # 最短路的计算结果？
             dp = ofctl_api.get_datapath(self, dpid=dpid)
 
             # 如果是自己 就跳过
@@ -246,7 +248,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.tm.add_host(host)
 
         # 增加switch-host记录
-        print("[DEBUG ADD] add switch-host before", (host.port.dpid not in self.switch_contain_host) )
+        print("[DEBUG ADD] add switch-host before", (host.port.dpid not in self.switch_contain_host))
         if host.port.dpid not in self.switch_contain_host:
             # 如果这个host相连的switch还没有被记录过
             self.switch_contain_host[host.port.dpid] = []
@@ -255,11 +257,9 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         print("[BELONG]", self.belong)
 
-
         self.calc_spanning_tree()
 
         self.one_switch_special_case()
-
 
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
@@ -292,11 +292,10 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         # 重建 flow
         self.flow_recreate()
-        
+
         # print("[DEBUG!!!] self.switch_contain_host", self.switch_contain_host)
         # 上层伸展树
         self.calc_spanning_tree()
-
 
     @set_ev_cls(event.EventLinkDelete)
     def handle_link_delete(self, ev):
@@ -306,11 +305,11 @@ class ShortestPathSwitching(app_manager.RyuApp):
         link = ev.link
         src_port = link.src
         dst_port = link.dst
-        
+
         print("[*] delete happened")
         self.logger.warn("Deleted Link:  switch%s/%s (%s) -> switch%s/%s (%s)",
-                          src_port.dpid, src_port.port_no, src_port.hw_addr,
-                          dst_port.dpid, dst_port.port_no, dst_port.hw_addr)
+                         src_port.dpid, src_port.port_no, src_port.hw_addr,
+                         dst_port.dpid, dst_port.port_no, dst_port.hw_addr)
 
         # 更新内部最短路
         self.graph.remove(src_port.dpid, dst_port.dpid)
@@ -333,7 +332,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         # 上层伸展树
         self.calc_spanning_tree()
-
 
         # TODO:  Update network topology and flow rules
 
@@ -382,20 +380,21 @@ class ShortestPathSwitching(app_manager.RyuApp):
                         else:
                             self.res[j] = {}
                             self.res[j][i] = port
-        print("[!!!!]",self.res)
+        print("[!!!!]", self.res)
 
     def one_switch_special_case(self):
         # 只有一个 switch 的时候 没有生成树
-        if(len(self.switch_list)==1):
+        if (len(self.switch_list) == 1):
             for switch in self.switch_list:
                 for host_mac in self.belong:
                     host_port_dpid, host_port_no = self.belong[host_mac]
-                    datapath = ofctl_api.get_datapath(self, dpid = host_port_dpid)
+                    datapath = ofctl_api.get_datapath(self, dpid=host_port_dpid)
                     match = datapath.ofproto_parser.OFPMatch(
-                        dl_dst=haddr_to_bin(ETHERNET_MULTICAST), # 这是一个广播包
-                        dl_src=haddr_to_bin(host_mac), # 来源 MAC 地址
+                        dl_dst=haddr_to_bin(ETHERNET_MULTICAST),  # 这是一个广播包
+                        dl_src=haddr_to_bin(host_mac),  # 来源 MAC 地址
                     )
-                    actions = [datapath.ofproto_parser.OFPActionOutput(i[1]) for i in self.switch_contain_host[host_port_dpid]]
+                    actions = [datapath.ofproto_parser.OFPActionOutput(i[1]) for i in
+                               self.switch_contain_host[host_port_dpid]]
 
                     ofp_parser = datapath.ofproto_parser
 
@@ -403,11 +402,10 @@ class ShortestPathSwitching(app_manager.RyuApp):
                         datapath, match=match, cookie=0, priority=50, actions=actions)
                     datapath.send_msg(flow_mod)
 
-
     def flow_reset(self):
         # flow 清空
         for switch in self.switch_list:
-            datapath = ofctl_api.get_datapath(self, dpid = switch.dp.id)
+            datapath = ofctl_api.get_datapath(self, dpid=switch.dp.id)
             empty_match = datapath.ofproto_parser.OFPMatch()
             cmd = datapath.ofproto.OFPFC_DELETE
             actions = []
@@ -417,7 +415,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
             flow_mod = datapath.ofproto_parser.OFPFlowMod(
                 datapath, match=empty_match, cookie=0, command=cmd, priority=65535, actions=actions)
             datapath.send_msg(flow_mod)
-
 
     def flow_recreate(self):
         # flow 重建
@@ -429,7 +426,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 host_port_no
             )
 
-            for dpid in self.res: # 最短路的计算结果？
+            for dpid in self.res:  # 最短路的计算结果？
                 dp = ofctl_api.get_datapath(self, dpid=dpid)
 
                 # 如果是自己 就跳过
@@ -443,7 +440,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
                     self.res[dpid][host_port_dpid]
                 )
 
-
     def calc_spanning_tree(self):
         # 广播包应该也到当前节点的内部节点！！！！！
         for switch in self.switch_contain_host:
@@ -454,25 +450,25 @@ class ShortestPathSwitching(app_manager.RyuApp):
             #     # 可以设定内部switch
             # else:
             #     # 当前switch是内部switch
-        # if current_id in self.switch_contain_host:
+            # if current_id in self.switch_contain_host:
 
             for (host_mac, switch_port_num) in self.switch_contain_host[current_id]:
 
                 print("[^] processing on ", host_mac, current_id)
 
-
                 last_ids = set()
 
                 for edge_layers in self.spanning_tree.flood(current_id):
-                    print("[>>]" ,edge_layers)
-                    if len(edge_layers) > 0: # 只设定有子结点的
+                    print("[>>]", edge_layers)
+                    if len(edge_layers) > 0:  # 只设定有子结点的
 
                         for edge in edge_layers:
                             try:
-                                last_ids.remove(edge[0])   
+                                last_ids.remove(edge[0])
                             except KeyError as e:
-                                print("[^] already removed ", edge[0])                 
-                            print("[$$$]", "from=",current_id, "to=",edge[2],"last_switch=", edge[0], "last_port=", edge[1])
+                                print("[^] already removed ", edge[0])
+                            print("[$$$]", "from=", current_id, "to=", edge[2], "last_switch=", edge[0], "last_port=",
+                                  edge[1])
                             last_ids.add(edge[2])
 
                         # 预处理 按照父节点分类
@@ -481,15 +477,15 @@ class ShortestPathSwitching(app_manager.RyuApp):
                         for edge in edge_layers:
                             if edge[0] not in out_port_dict:
                                 out_port_dict[edge[0]] = []
-                            out_port_dict[edge[0]].append( (edge[1], edge[2]) )
+                            out_port_dict[edge[0]].append((edge[1], edge[2]))
 
                         for father in out_port_dict:
 
                             datapath = ofctl_api.get_datapath(self, dpid=father)
                             ofproto = datapath.ofproto
                             match = datapath.ofproto_parser.OFPMatch(
-                                dl_dst=haddr_to_bin(ETHERNET_MULTICAST), # 这是一个广播包
-                                dl_src=haddr_to_bin(host_mac), # 来源 MAC 地址
+                                dl_dst=haddr_to_bin(ETHERNET_MULTICAST),  # 这是一个广播包
+                                dl_src=haddr_to_bin(host_mac),  # 来源 MAC 地址
                             )
 
                             new_out_ports = [i[0] for i in out_port_dict[father]]
@@ -497,14 +493,13 @@ class ShortestPathSwitching(app_manager.RyuApp):
                             if father in self.switch_contain_host:
                                 host_out_li = [i[1] for i in self.switch_contain_host[father]]
                                 new_out_ports += host_out_li
-                            
-                            
+
                             actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in new_out_ports]
 
                             mod = datapath.ofproto_parser.OFPFlowMod(
                                 datapath=datapath, match=match, cookie=0,
                                 command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-                                priority=1, # 优先级至少比默认最短路优先级高 (或许可以设定一个统一值)
+                                priority=1,  # 优先级至少比默认最短路优先级高 (或许可以设定一个统一值)
                                 flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
                             datapath.send_msg(mod)
 
@@ -513,22 +508,21 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 for terminal_id in last_ids:
                     # 终端的话 发给对应的host就好了
                     if terminal_id in self.switch_contain_host:
-
                         datapath = ofctl_api.get_datapath(self, dpid=terminal_id)
                         ofproto = datapath.ofproto
                         match = datapath.ofproto_parser.OFPMatch(
-                            dl_dst=haddr_to_bin(ETHERNET_MULTICAST), # 这是一个广播包
-                            dl_src=haddr_to_bin(host_mac), # 来源 MAC 地址
+                            dl_dst=haddr_to_bin(ETHERNET_MULTICAST),  # 这是一个广播包
+                            dl_src=haddr_to_bin(host_mac),  # 来源 MAC 地址
                         )
 
                         host_out_li = [i[1] for i in self.switch_contain_host[terminal_id]]
                         actions = [datapath.ofproto_parser.OFPActionOutput(i) for i in host_out_li]
 
                         mod = datapath.ofproto_parser.OFPFlowMod(
-                                datapath=datapath, match=match, cookie=0,
-                                command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-                                priority=1, # 优先级至少比默认最短路优先级高 (或许可以设定一个统一值)
-                                flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
+                            datapath=datapath, match=match, cookie=0,
+                            command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
+                            priority=1,  # 优先级至少比默认最短路优先级高 (或许可以设定一个统一值)
+                            flags=ofproto.OFPFF_SEND_FLOW_REM, actions=actions)
                         datapath.send_msg(mod)
 
     def add_forwaring_rule(self, datapath, dl_dst, port):
