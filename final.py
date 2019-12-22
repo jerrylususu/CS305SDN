@@ -189,25 +189,28 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
     def show_shortest_path(self):
         print("=========== XCC Path =============")
-        for u in self.switch_list:
-            for v in self.switch_list:
-                paths = []
-                now = u.dp.id
-                while now != v.dp.id:
-                    port = self.res[now][v.dp.id]
-                    p = None
-                    for t, tp in self.graph.go_from(now):
-                        if tp != port:
-                            continue
-                        p = t
-                        break
-                    assert p is not None
-                    now = p
-                    paths.append((port, p))
-                res = f"{u}"
-                for path in paths:
-                    res += f" -{path[0]}-> {path[1]}"
-                print(res)
+        try:
+            for u in self.switch_list:
+                for v in self.switch_list:
+                    paths = []
+                    now = u.dp.id
+                    while now != v.dp.id:
+                        port = self.res[now][v.dp.id]
+                        p = None
+                        for t, tp in self.graph.go_from(now):
+                            if tp != port:
+                                continue
+                            p = t
+                            break
+                        assert p is not None
+                        now = p
+                        paths.append((port, p))
+                    res = f"s{u.dp.id}"
+                    for path in paths:
+                        res += f" -p{path[0]}-> s{path[1]}"
+                    print(res)
+        except KeyError:
+            pass
         print("============= Done ===============")
 
 
@@ -304,6 +307,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.one_switch_special_case()
 
         self.show_topology()
+        self.show_shortest_path()
 
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
@@ -342,6 +346,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.calc_spanning_tree()
 
         self.show_topology()
+        self.show_shortest_path()
+
 
     @set_ev_cls(event.EventLinkDelete)
     def handle_link_delete(self, ev):
@@ -380,6 +386,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.calc_spanning_tree()
 
         self.show_topology()
+        self.show_shortest_path()
 
     @set_ev_cls(event.EventPortModify)
     def handle_port_modify(self, ev):
