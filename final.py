@@ -41,7 +41,7 @@ class Edge(object):
         self.v = (v, port_v)
 
     def __repr__(self):
-        return __str__(self)
+        return self.__str__()
 
     def __str__(self):
         return "==> u: (%d %d) v: (%d %d)" % (self.u[0], self.u[1], self.v[0], self.v[1])
@@ -151,7 +151,6 @@ class Graph:
                 self.exist[now] = False
             now = self.next[now]
 
-
 class ShortestPathSwitching(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
 
@@ -169,6 +168,21 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.spanning_tree = SpanningTree(1000);  # 用于处理广播包的伸展树 只处理内部switch节点
         self.switch_contain_host = {}  # 每个switch有哪些host: key=switch.dp.id, value=[] (host_mac, switch_port_num)
+
+    def show(self):
+        print("=========== XCC Graph ============")
+        print("Src Switch ID\tPort\tDst Switch ID")
+        for u in self.switch_contain_host:
+            for v, port in self.graph.go_from(u):
+                print(f"{u}\t{port}\t{v}")
+        print("")
+        print("")
+        print("Switch ID\tPort\tHost")
+        for u in self.switch_contain_host:
+            for item in self.switch_contain_host[u]:
+                print(f"{u}\t{item[1]}\t{item[0]}")
+        print("============= Done ===============")
+
 
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
