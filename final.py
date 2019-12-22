@@ -169,15 +169,19 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.spanning_tree = SpanningTree(1000);  # 用于处理广播包的伸展树 只处理内部switch节点
         self.switch_contain_host = {}  # 每个switch有哪些host: key=switch.dp.id, value=[] (host_mac, switch_port_num)
 
-    def show(self):
+    def show_topology(self):
         print("=========== XCC Graph ============")
-        print("Src Switch ID\tPort\tDst Switch ID")
+        print("Src SID\tPort\tDst SID")
+        # print(self.switch_contain_host)
         for u in self.switch_contain_host:
+            s = set()
             for v, port in self.graph.go_from(u):
-                print(f"{u}\t{port}\t{v}")
+                if v not in s:
+                    s.add(v)
+                    print(f"{u}\t{port}\t{v}")
         print("")
         print("")
-        print("Switch ID\tPort\tHost")
+        print("SID\tPort\tHost")
         for u in self.switch_contain_host:
             for item in self.switch_contain_host[u]:
                 print(f"{u}\t{item[1]}\t{item[0]}")
@@ -200,6 +204,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         # switch上线 加入mapping 为之后链路做准备
         self.one_switch_special_case()
+
 
     @set_ev_cls(event.EventSwitchLeave)
     def handle_switch_delete(self, ev):  # switch下线
@@ -275,6 +280,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.one_switch_special_case()
 
+        self.show_topology()
+
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
         """
@@ -310,6 +317,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
         # print("[DEBUG!!!] self.switch_contain_host", self.switch_contain_host)
         # 上层伸展树
         self.calc_spanning_tree()
+
+        self.show_topology()
 
     @set_ev_cls(event.EventLinkDelete)
     def handle_link_delete(self, ev):
@@ -347,7 +356,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         # 上层伸展树
         self.calc_spanning_tree()
 
-        # TODO:  Update network topology and flow rules
+        self.show_topology()
 
     @set_ev_cls(event.EventPortModify)
     def handle_port_modify(self, ev):
@@ -360,7 +369,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
                          port.dpid, port.port_no, port.hw_addr,
                          "UP" if port.is_live() else "DOWN")
 
-        # TODO:  Update network topology and flow rules
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
