@@ -182,6 +182,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.switch_list.append(switch) # 加入controller控制的switch列表
 
         # switch上线 加入mapping 为之后链路做准备
+        self.one_switch_special_case()
 
     @set_ev_cls(event.EventSwitchLeave)
     def handle_switch_delete(self, ev): # switch下线
@@ -199,6 +200,9 @@ class ShortestPathSwitching(app_manager.RyuApp):
         except ValueError:
             # 应该已经被移除了
             pass
+
+        self.one_switch_special_case()
+
 
     @set_ev_cls(event.EventHostAdd)
     def handle_host_add(self, ev): # 主机上线
@@ -253,6 +257,9 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
 
         self.calc_spanning_tree()
+
+        self.one_switch_special_case()
+
 
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
@@ -376,6 +383,26 @@ class ShortestPathSwitching(app_manager.RyuApp):
                             self.res[j] = {}
                             self.res[j][i] = port
         print("[!!!!]",self.res)
+
+    def one_switch_special_case(self):
+        # 只有一个 switch 的时候 没有生成树
+        if(len(self.switch_list)==1):
+            for switch in self.switch_list:
+                for host_mac in self.belong:
+                    host_port_dpid, host_port_no = self.belong[host_mac]
+                    datapath = ofctl_api.get_datapath(self, dpid = host_port_dpid)
+                    match = datapath.ofproto_parser.OFPMatch(
+                        dl_dst=haddr_to_bin(ETHERNET_MULTICAST), # 这是一个广播包
+                        dl_src=haddr_to_bin(host_mac), # 来源 MAC 地址
+                    )
+                    actions = [datapath.ofproto_parser.OFPActionOutput(i[1]) for i in self.switch_contain_host[host_port_dpid]]
+
+                    ofp_parser = datapath.ofproto_parser
+
+                    flow_mod = datapath.ofproto_parser.OFPFlowMod(
+                        datapath, match=match, cookie=0, priority=50, actions=actions)
+                    datapath.send_msg(flow_mod)
+
 
     def flow_reset(self):
         # flow 清空
