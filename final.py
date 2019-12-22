@@ -151,6 +151,7 @@ class Graph:
                 self.exist[now] = False
             now = self.next[now]
 
+
 class ShortestPathSwitching(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
 
@@ -213,6 +214,22 @@ class ShortestPathSwitching(app_manager.RyuApp):
             pass
         print("============= Done ===============")
 
+    def show_spanning_tree(self):
+        print("=========== XCC Tree =============")
+        try:
+            for u in self.switch_list:
+                last_ids = set()
+                for edge_layers in self.spanning_tree.flood(u):
+                    for edge in edge_layers:
+                        try:
+                            last_ids.remove(edge[0])
+                        except KeyError as e:
+                            pass
+                        print(f"{edge[0]} -{edge[1]}-> {edge[2]}")
+                break
+        except KeyError:
+            pass
+        print("============= Done ===============")
 
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
@@ -230,7 +247,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         # switch上线 加入mapping 为之后链路做准备
         self.one_switch_special_case()
-
 
     @set_ev_cls(event.EventSwitchLeave)
     def handle_switch_delete(self, ev):  # switch下线
@@ -348,7 +364,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.show_topology()
         self.show_shortest_path()
 
-
     @set_ev_cls(event.EventLinkDelete)
     def handle_link_delete(self, ev):
         """
@@ -398,7 +413,6 @@ class ShortestPathSwitching(app_manager.RyuApp):
         self.logger.warn("Port Changed:  switch%s/%s (%s):  %s",
                          port.dpid, port.port_no, port.hw_addr,
                          "UP" if port.is_live() else "DOWN")
-
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
