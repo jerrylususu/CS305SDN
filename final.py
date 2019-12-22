@@ -187,6 +187,29 @@ class ShortestPathSwitching(app_manager.RyuApp):
                 print(f"{u}\t{item[1]}\t{item[0]}")
         print("============= Done ===============")
 
+    def show_shortest_path(self):
+        print("=========== XCC Path =============")
+        for u in self.switch_list:
+            for v in self.switch_list:
+                paths = []
+                now = u.dp.id
+                while now != v.dp.id:
+                    port = self.res[now][v.dp.id]
+                    p = None
+                    for t, tp in self.graph.go_from(now):
+                        if tp != port:
+                            continue
+                        p = t
+                        break
+                    assert p is not None
+                    now = p
+                    paths.append((port, p))
+                res = f"{u}"
+                for path in paths:
+                    res += f" -{path[0]}-> {path[1]}"
+                print(res)
+        print("============= Done ===============")
+
 
     @set_ev_cls(event.EventSwitchEnter)
     def handle_switch_add(self, ev):
