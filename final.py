@@ -219,14 +219,14 @@ class ShortestPathSwitching(app_manager.RyuApp):
         try:
             for u in self.switch_list:
                 last_ids = set()
-                for edge_layers in self.spanning_tree.flood(u):
+                for edge_layers in self.spanning_tree.flood(u.dp.id):
                     for edge in edge_layers:
                         try:
                             last_ids.remove(edge[0])
                         except KeyError as e:
                             pass
-                        print(f"{edge[0]} -{edge[1]}-> {edge[2]}")
-                break
+                        print(f"tree_root=s{u.dp.id}: s{edge[0]} -p{edge[1]}-> s{edge[2]}")
+                # break
         except KeyError:
             pass
         print("============= Done ===============")
@@ -324,6 +324,7 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.show_topology()
         self.show_shortest_path()
+        self.show_spanning_tree()
 
     @set_ev_cls(event.EventLinkAdd)
     def handle_link_add(self, ev):
@@ -363,6 +364,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.show_topology()
         self.show_shortest_path()
+        self.show_spanning_tree()
+
 
     @set_ev_cls(event.EventLinkDelete)
     def handle_link_delete(self, ev):
@@ -402,6 +405,8 @@ class ShortestPathSwitching(app_manager.RyuApp):
 
         self.show_topology()
         self.show_shortest_path()
+        self.show_spanning_tree()
+
 
     @set_ev_cls(event.EventPortModify)
     def handle_port_modify(self, ev):
